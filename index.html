@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dir3-Lab | مختبر ثغرات IDOR</title>
+<style>
+*{box-sizing:border-box;font-family:system-ui,Tajawal}
+body{background:#0f1117;color:#e6e6e6;margin:0;padding:0}
+header{background:#1a1f2e;padding:25px;text-align:center;border-bottom:2px solid #2d8cff}
+h1{margin:0;color:#2d8cff}.sub{color:#9aa0b5;margin-top:8px}
+.container{max-width:900px;margin:auto;padding:20px}
+.card{background:#1a1f2e;border:1px solid #2a3147;border-radius:14px;padding:20px;margin:18px 0}
+.btn{background:#2d8cff;color:#fff;border:0;padding:10px 18px;border-radius:10px;cursor:pointer}
+.btn:disabled{opacity:.5}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3147;background:#0f1117;color:#fff;margin:8px 0}
+.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px}
+.ok{background:#0e3d1f;color:#3dd68c}.bad{background:#4a1212;color:#ff6b6b}
+pre{background:#0f1117;padding:12px;border-radius:10px;overflow:auto;direction:ltr;text-align:left}
+.level{border-right:4px solid #2d8cff}
+</style>
+</head>
+<body>
+<header>
+<h1>Dir3-Lab - درع</h1>
+<div class="sub">مختبر عربي تفاعلي لتعليم ثغرات IDOR بأمان - مسابقة شراع</div>
+<div style="margin-top:10px"><span class="badge ok">آمن 100% - بيانات وهمية</span> <span class="badge ok">3 مستويات</span></div>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h3>ما هي ثغرة IDOR؟</h3>
+<p>Insecure Direct Object Reference يعني أن الموقع يكشف عن بيانات المستخدم عبر رقم ID في الرابط بدون تحقق أنك صاحب البيانات. مثال: <code>/api/user?id=123</code> لو غيرت الرقم لـ 124 تشوف بيانات شخص ثاني!</p>
+</div>
+
+<!-- Level 1 -->
+<div class="card level">
+<h2>المستوى 1: تسريب بروفايل مستخدم</h2>
+<p>أنت مسجل دخول كمستخدم <b>id=101</b>. جرب تغير الـ ID في الرابط.</p>
+<input id="l1id" value="101" placeholder="ادخل ID">
+<button class="btn" onclick="lab1()">عرض البيانات</button>
+<pre id="l1out">{"id":101,"name":"يوسف (أنت)","email":"youssef@lab.local","role":"student"}</pre>
+<p id="l1hint"></p>
+</div>
+
+<!-- Level 2 -->
+<div class="card level">
+<h2>المستوى 2: فواتير مسربة</h2>
+<p>عندك فاتورة واحدة فقط، لكن السيرفر لا يتحقق!</p>
+<input id="l2id" value="5001" placeholder="رقم الفاتورة">
+<button class="btn" onclick="lab2()">فتح الفاتورة</button>
+<pre id="l2out">جرب الرقم 5001 أولاً</pre>
+</div>
+
+<!-- Level 3 -->
+<div class="card level">
+<h2>المستوى 3: API للمدرسة - تحدي شراع</h2>
+<p>نظام درجات، المفروض تشوف درجتك فقط. لكن الـ API مفتوح.</p>
+<div style="display:flex;gap:8px">
+<input id="l3id" value="2024101" style="flex:1">
+<button class="btn" onclick="lab3()">GET /api/grades</button>
+</div>
+<pre id="l3out">{"student_id":2024101,"name":"يوسف","gpa":3.8,"flag":"DIR3{not_flag_yet}"}</pre>
+<p>الهدف: اكتشف كيف يتم استغلال الـ ID للوصول لـ flag المدير <code>admin</code></p>
+</div>
+
+<div class="card">
+<h3>كيف تصلح الثغرة؟</h3>
+<pre>
+// خطأ:
+user = db.get(request.id)
+
+// صح:
+user = db.get(request.id)
+if user.owner!= current_user: return 403 Forbidden
+</pre>
+<p>الحل: تحقق من الملكية في كل طلب + استخدم UUID عشوائي بدل أرقام متسلسلة.</p>
+</div>
+
+<footer style="text-align:center;color:#666;padding:30px">صمم بواسطة youssef - Dir3-Lab لمسابقة شراع اليمن 2026</footer>
+</div>
+
+<script>
+const users={101:{name:"يوسف (أنت)",email:"youssef@lab.local",role:"student"},102:{name:"أحمد الإدارة",email:"admin@school.ye",role:"admin",secret:"FLAG: DIR3{IDOR_PWNED_2026}"},103:{name:"سارة",email:"sara@lab.local",role:"student",gpa:4.0}};
+function lab1(){
+ let id=document.getElementById('l1id').value;
+ let data=users[id];
+ if(data){ document.getElementById('l1out').textContent=JSON.stringify({id,...data},null,2);
+ if(id==102){ document.getElementById('l1hint').innerHTML='<span class="badge bad">ثغرة مكتشفة! وصلت لبيانات الأدمن</span>'; }
+ else { document.getElementById('l1hint').textContent=''; }
+ } else document.getElementById('l1out').textContent='{"error":"not found"}';
+}
+const invoices={5001:{owner:101,total:"$20",item:"كتاب أمن معلومات"},5002:{owner:102,total:"$5000",item:"سيرفرات المدرسة - سري"},5003:{owner:103,total:"$15",item:"دفتر"}};
+function lab2(){
+ let id=document.getElementById('l2id').value;
+ let inv=invoices[id];
+ if(inv) document.getElementById('l2out').textContent=JSON.stringify(inv,null,2);
+ else document.getElementById('l2out').textContent='{"error":"invoice not found"}';
+}
+function lab3(){
+ let id=document.getElementById('l3id').value;
+ if(id=="admin" || id=="102"){ document.getElementById('l3out').textContent=JSON.stringify({student_id:"admin",name:"المدير العام",gpa:5,flag:"DIR3{SHIRAA_WINNER_YEMEN_2026}"},null,2); return; }
+ let u=users[id];
+ if(u) document.getElementById('l3out').textContent=JSON.stringify({student_id:id,name:u.name,gpa:u.gpa||3.5,flag:u.secret||"DIR3{keep_hunting}"},null,2);
+ else document.getElementById('l3out').textContent='{"error":"invalid id"}';
+}
+</script>
+</body>
+  </html>
